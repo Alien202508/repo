@@ -1,85 +1,76 @@
-name: Build APK
+name: All Builds and Run Bot Script
 
 on:
   push:
     branches:
       - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
+env:
+  BUILD_NUMBER: 1
+  BUILD_VERSION: 1.0.0
+  PYTHON_VERSION: 3.12.2
+  FLUTTER_VERSION: 3.22.2
+
 jobs:
-  build-apk:
+  build-linux:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - name: Patch for linux build
+        run: |
+          flutter doctor
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build libgtk-3-dev
+          flutter doctor
+      - name: Flet Build Linux
+        run: |
+          flutter config --no-analytics
+          flet build linux --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4.3.4
+        with:
+          name: linux-build-artifact
+          path: build/linux
+          if-no-files-found: warn
+          overwrite: false
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+  # ... نفس فكرة build-macos, build-windows, build-aab, build-apk, build-ipa
+  # (اضفهم بنفس النمط إذا تحتاج)
 
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y \
-          build-essential \
-          git \
-          zip \
-          unzip \
-          openjdk-11-jdk \
-          python3-pip \
-          libffi-dev \
-          libssl-dev \
-          libncurses5 \
-          libsqlite3-dev \
-          libgdbm-dev \
-          libnss3-dev \
-          zlib1g-dev \
-          libbz2-dev \
-          libreadline-dev \
-          liblzma-dev \
-          libsdl2-dev \
-          libsdl2-image-dev \
-          libsdl2-mixer-dev \
-          libsdl2-ttf-dev \
-          libportmidi-dev \
-          libswscale-dev \
-          libavformat-dev \
-          libavcodec-dev \
-          libfreetype6-dev \
-          libjpeg-dev \
-          libpng-dev \
-          libtiff5-dev \
-          libx11-dev \
-          libsmpeg-dev \
-          libgl1-mesa-dev \
-          libgles2-mesa-dev \
-          python3-setuptools \
-          libffi-dev \
-          libssl-dev \
-          adb \
-          clang \
-          cmake \
-          pkg-config \
-          libtool \
-          libgl1-mesa-dev \
-          libgles2-mesa-dev \
-          xclip \
-          libmtdev-dev \
-          libglfw3 \
-          libglfw3-dev \
-          libudev-dev
-
-        pip install --upgrade pip
-        pip install buildozer cython
-
-    - name: Build APK
-      run: |
-        buildozer android debug
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: my-apk
-        path: bin/*.apk
+  run-bot:
+    runs-on: ubuntu-latest
+    needs: [build-linux]  # تقدر تحط build-macos أو build-apk هنا إذا حبيت تبني قبل تشغيل السكربت
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run bot.py script once
+        run: python bot.py
+        env:
+          EMAIL: ${{ secrets.EMAIL }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+          MASTER_EMAIL: ${{ secrets.MASTER_EMAIL }}
