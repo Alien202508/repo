@@ -1,5 +1,6 @@
 name: Build APK
 
+# يتم التشغيل عند كل دفع (push) على الفرع main
 on:
   push:
     branches: [ "main" ]
@@ -9,21 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/upload-artifact@v4
+    # 1️⃣ نسخ المشروع
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # 2️⃣ إعداد Python
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: "3.11"
+
+    # 3️⃣ تثبيت مكتبات Python المطلوبة
     - name: Install dependencies
       run: |
+        pip install --upgrade pip
         pip install flet beeware
+
+    # 4️⃣ إنشاء وبناء وتهيئة مشروع Android باستخدام BeeWare
     - name: Build APK
       run: |
-        briefcase create android
-        briefcase build android
-        briefcase package android
+        briefcase create android --verbose
+        briefcase build android --verbose
+        briefcase package android --verbose
+
+    # 5️⃣ رفع APK كـ artifact على GitHub
     - name: Upload APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: email-bot-apk
         path: android/
